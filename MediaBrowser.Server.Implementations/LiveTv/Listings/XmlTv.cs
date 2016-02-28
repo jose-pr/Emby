@@ -37,7 +37,7 @@ namespace MediaBrowser.Server.Implementations.LiveTv.Listings
             throw new NotImplementedException();
         }
 
-        protected override Task<IEnumerable<ProgramInfo>> GetProgramsAsyncInternal(ListingsProviderInfo info, string station, DateTime startDateUtc, DateTime endDateUtc, CancellationToken cancellationToken)
+        protected override Task<IEnumerable<ProgramInfo>> GetProgramsAsyncInternal(ListingsProviderInfo info, Station station, DateTime startDateUtc, DateTime endDateUtc, CancellationToken cancellationToken)
         {
             throw new NotImplementedException();
         }

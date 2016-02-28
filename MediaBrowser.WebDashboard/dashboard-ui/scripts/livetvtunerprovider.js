@@ -108,8 +108,13 @@
     }
     function refreshListings(provider,page) {
         var wait = $.Deferred();
-
-        if(!provider.Id || !provider.ZipCode || !provider.Country){return;}
+        var current = provide.ListingsId || "";
+        $('#selectListing', page).append(result.map(function (o) {
+            return '<option value="' + provider.Id + "_" + provide.ListingsId + '">' + provide.ListingsId + '</option>';
+        }));
+        if (!provider.Id || !provider.ZipCode || !provider.Country) {
+            return;
+        }
 
         ApiClient.ajax({
             type: "GET",

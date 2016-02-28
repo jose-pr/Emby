@@ -10,6 +10,7 @@ using System;
 using System.Linq;
 using System.Threading;
 using MediaBrowser.Common.Net;
+using MediaBrowser.Server.Implementations.LiveTv.Listings;
 
 namespace MediaBrowser.Server.Implementations.LiveTv.TunerHosts.HdHomerun
 {
@@ -67,33 +68,49 @@ namespace MediaBrowser.Server.Implementations.LiveTv.TunerHosts.HdHomerun
             try
             {
                 var options = GetConfiguration();
-
-                if (options.TunerHosts.Any(i =>
-                            string.Equals(i.Type, HdHomerunHost.DeviceType, StringComparison.OrdinalIgnoreCase) &&
-                            UriEquals(i.Url, url)))
-                {
-                    return;
-                }
-
                 // Strip off the port
                 url = new Uri(url).GetComponents(UriComponents.AbsoluteUri & ~UriComponents.Port, UriFormat.UriEscaped).TrimEnd('/');
 
-                // Test it by pulling down the lineup
-                using (await _httpClient.Get(new HttpRequestOptions
-                {
-                    Url = string.Format("{0}/lineup.json", url),
-                    CancellationToken = CancellationToken.None
-                }))
-                {
-                }
-                
-                await _liveTvManager.SaveTunerHost(new TunerHostInfo
-                {
-                    Type = HdHomerunHost.DeviceType,
-                    Url = url,
-                    DataVersion = 1
+            
 
-                }).ConfigureAwait(false);
+                if (!options.TunerHosts.Any(i =>
+                            string.Equals(i.Type, HdHomerunHost.DeviceType, StringComparison.OrdinalIgnoreCase) &&
+                            UriEquals(i.Url, url)))
+                {
+                    // Test it by pulling down the lineup
+                    using (await _httpClient.Get(new HttpRequestOptions
+                    {
+                        Url = string.Format("{0}/lineup.json", url),
+                        CancellationToken = CancellationToken.None
+                    })) { }
+
+                    await _liveTvManager.SaveTunerHost(new TunerHostInfo
+                    {
+                        Type = HdHomerunHost.DeviceType,
+                        Url = url,
+                        DataVersion = 1
+
+                    }).ConfigureAwait(false);
+                }
+
+                if (!options.ListingProviders.Any(i =>
+            string.Equals(i.Type, HdHomerunListings.ProviderType, StringComparison.OrdinalIgnoreCase) &&
+            UriEquals(i.Path, url)))
+                {
+                    // Test it by pulling down the lineup
+                    using (await _httpClient.Get(new HttpRequestOptions
+                    {
+                        Url = string.Format("{0}/lineup.json", url),
+                        CancellationToken = CancellationToken.None
+                    })) { }
+
+                    await _liveTvManager.SaveListingProvider(new ListingsProviderInfo
+                    {
+                        Path = url,
+                        Type = HdHomerunListings.ProviderType,
+                        ListingsId = "native"
+                    }, false, false);
+                }
             }
             catch (Exception ex)
             {

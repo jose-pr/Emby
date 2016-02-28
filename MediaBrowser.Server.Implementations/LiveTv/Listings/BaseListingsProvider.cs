@@ -34,7 +34,7 @@ namespace MediaBrowser.Server.Implementations.LiveTv.Listings
 
         protected abstract Task<IEnumerable<Station>> GetStations(ListingsProviderInfo info, string lineup, CancellationToken cancellationToken);
 
-        protected abstract Task<IEnumerable<ProgramInfo>> GetProgramsAsyncInternal(ListingsProviderInfo info, string station, DateTime startDateUtc, DateTime endDateUtc, CancellationToken cancellationToken);
+        protected abstract Task<IEnumerable<ProgramInfo>> GetProgramsAsyncInternal(ListingsProviderInfo info, Station station, DateTime startDateUtc, DateTime endDateUtc, CancellationToken cancellationToken);
 
 
         public async Task<IEnumerable<ProgramInfo>> GetProgramsAsync(ListingsProviderInfo info, ChannelInfo channel, DateTime startDateUtc, DateTime endDateUtc, CancellationToken cancellationToken)
@@ -49,7 +49,7 @@ namespace MediaBrowser.Server.Implementations.LiveTv.Listings
                 return programsInfo;
             }
             
-            programsInfo = await GetProgramsAsyncInternal(info, station.Id, startDateUtc,endDateUtc, cancellationToken);
+            programsInfo = await GetProgramsAsyncInternal(info, station, startDateUtc,endDateUtc, cancellationToken);
 
             foreach (var program in programsInfo)
             {
@@ -107,7 +107,7 @@ namespace MediaBrowser.Server.Implementations.LiveTv.Listings
                 if (!string.IsNullOrWhiteSpace(lineup)) { stations.AddRange(await GetStations(info, lineup, cancellationToken)); }
             }
 
-            _logger.Info("Found stations: "+ stations.Count+
+            _logger.Info("Provider "+info.Id+" Found stations: "+ stations.Count+
                 " for lineups: " + _jsonSerializer.SerializeToString(lineups));
             foreach (var channel in channels)
             {
@@ -174,6 +174,8 @@ namespace MediaBrowser.Server.Implementations.LiveTv.Listings
         /// </summary>
         /// <value>The lineup id.</value>
         public string Lineup { get; set; }
+
+        public IEnumerable<ProgramInfo> GuideData { get; set; }
 
     }
 }
