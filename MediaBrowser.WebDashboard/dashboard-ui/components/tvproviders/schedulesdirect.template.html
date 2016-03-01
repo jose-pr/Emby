@@ -1,14 +1,10 @@
 ﻿<h1>Schedules Direct</h1>
 <p class="createAccountHelp"></p>
 <div style="font-size:16px;">
-    <div style="display:inline-block;background-color:rgba(82,181,75,.8);color:#fff;padding:2px 10px;font-size:20px;border-radius:1000px;vertical-align:middle;">
-        1
-    </div>
     <div style="display:inline-block;vertical-align:middle;margin-left:5px;">
         ${GuideProviderLogin}
     </div>
 </div>
-
 <form class="formLogin">
     <div>
         <div>
@@ -25,39 +21,33 @@
         </div>
     </div>
 </form>
-<br />
-<br />
-<br />
-<div class="listingsSection hide">
-    <div style="font-size:16px;">
-        <div style="display:inline-block;background-color:rgba(82,181,75,.8);color:#fff;padding:2px 10px;font-size:20px;border-radius:1000px;vertical-align:middle;">
-            2
-        </div>
-        <div style="display:inline-block;vertical-align:middle;margin-left:5px;">
-            ${GuideProviderSelectListings}
-        </div>
+<div data-role="collapsible" data-collapsed="true">
+    <h3>Add Lineup to Account</h3>
+    <div>
+        <br />
+        <label for="selectCountry" class="selectLabel">${LabelCountry}</label>
+        <select id="selectCountry" data-mini="true" required="required"></select>
     </div>
-    <form class="formListings">
-        <div>
-            <div>
-                <br />
-                <label for="selectCountry" class="selectLabel">${LabelCountry}</label>
-                <select id="selectCountry" data-mini="true" required="required"></select>
-            </div>
-            <div>
-                <paper-input class="txtZipCode" label="${LabelZipCode}" required="required"></paper-input>
-            </div>
-            <div>
-                <br />
-                <label for="selectListing" class="selectLabel">${LabelLineup}</label>
-                <select id="selectListing" data-mini="true" required="required"></select>
-            </div>
-            <div>
-                <button type="submit" data-role="none" class="clearButton btnSubmitListingsContainer">
-                    <paper-button raised class="submit block btnSubmitListings hide"><iron-icon icon="check"></iron-icon><span>${ButtonSave}</span></paper-button>
-                </button>
-                <paper-button raised class="cancel block btnCancel hide" onclick="history.back();"><iron-icon icon="close"></iron-icon><span>${ButtonCancel}</span></paper-button>
-            </div>
-        </div>
-    </form>
+    <div>
+        <paper-input class="txtZipCode" label="${LabelZipCode}" required="required"></paper-input>
+    </div>
+    <div>
+        <link rel="import" href="/web/bower_components/paper-dropdown-menu/paper-dropdown-menu.html">
+        <div id="addListing" style="display:inline-block"></div>
+        <paper-icon-button id="btnAddListing" icon="add"></paper-icon-button>
+    </div>
+</div>
+<div class="listingsSection hide">
+    <h3>Avaliable Lineups</h3>
+    <div style="font-size:16px;">
+        <table data-role="table" data-mode="reflow" class="AvaliableLineups stripedTable ui-responsive table-stroke">
+            <thead>
+                <tr>
+                    <th data-priority="2">Name</th>
+                    <th data-priority="1"></th>
+                </tr>
+            </thead>
+            <tbody class="resultBody"></tbody>
+        </table>
+    </div>
 </div>

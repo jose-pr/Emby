@@ -5,7 +5,7 @@
         var self = this;
 
         function reload() {
-            page.Reload();            
+            page.ReloadInfo();            
         }
 
         function submitForm() {  

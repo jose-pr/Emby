@@ -49,10 +49,10 @@ namespace MediaBrowser.Server.Implementations.LiveTv.Listings
             get { return ProviderType; }
         }
 
-        public Task<List<NameIdPair>> GetLineups(ListingsProviderInfo info, string country, string location)
+        public Task<List<NameIdPair>> GetLineups(ListingsProviderInfo info)
         {
             var lineup = new NameIdPair();
-            lineup.Name = "HDHomerun at" + info.Path;
+            lineup.Name = "HDHomerun at " + info.Path;
             lineup.Id = "native";
             return Task.FromResult(new List<NameIdPair> { lineup });
         }

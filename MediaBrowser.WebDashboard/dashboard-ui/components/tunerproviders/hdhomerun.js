@@ -6,7 +6,7 @@
 
         function reload() {
             page.querySelector('.chkFavorite').checked = false;
-            page.Reload().then(function (info) {
+            page.ReloadInfo().then(function (info) {
                 if (info) { page.querySelector('.chkFavorite').checked = info.ImportFavoritesOnly; }
             });
         }

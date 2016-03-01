@@ -448,14 +448,6 @@ namespace MediaBrowser.Api.LiveTv
         [ApiMember(Name = "Id", Description = "Provider id", IsRequired = false, DataType = "string", ParameterType = "query", Verb = "GET")]
         public string Id { get; set; }
 
-        [ApiMember(Name = "Type", Description = "Provider Type", IsRequired = false, DataType = "string", ParameterType = "query", Verb = "GET")]
-        public string Type { get; set; }
-
-        [ApiMember(Name = "Location", Description = "Location", IsRequired = false, DataType = "string", ParameterType = "query", Verb = "GET")]
-        public string Location { get; set; }
-
-        [ApiMember(Name = "Country", Description = "Country", IsRequired = false, DataType = "string", ParameterType = "query", Verb = "GET")]
-        public string Country { get; set; }
     }
 
     [Route("/LiveTv/ListingProviders/SchedulesDirect/Countries", "GET", Summary = "Gets available lineups")]
@@ -567,7 +559,7 @@ namespace MediaBrowser.Api.LiveTv
 
         public async Task<object> Get(GetLineups request)
         {
-            var info = await _liveTvManager.GetLineups(request.Type, request.Id, request.Country, request.Location).ConfigureAwait(false);
+            var info = await _liveTvManager.GetLineups(request.Id).ConfigureAwait(false);
 
             return ToOptimizedSerializedResultUsingCache(info);
         }

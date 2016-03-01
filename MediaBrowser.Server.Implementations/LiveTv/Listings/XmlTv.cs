@@ -27,7 +27,7 @@ namespace MediaBrowser.Server.Implementations.LiveTv.Listings
             get { return "xmltv"; }
         }
 
-        public Task<List<NameIdPair>> GetLineups(ListingsProviderInfo info, string country, string location)
+        public Task<List<NameIdPair>> GetLineups(ListingsProviderInfo info)
         {
             throw new NotImplementedException();
         }

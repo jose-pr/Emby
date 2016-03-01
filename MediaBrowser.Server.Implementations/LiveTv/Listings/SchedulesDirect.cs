@@ -22,20 +22,16 @@ namespace MediaBrowser.Server.Implementations.LiveTv.Listings
     {
         private readonly IHttpClient _httpClient;
         private readonly SemaphoreSlim _tokenSemaphore = new SemaphoreSlim(1, 1);
-        private readonly IApplicationHost _appHost;
-
-        private const string ApiUrl = "https://json.schedulesdirect.org/20141201";
+        private static string UserAgent;
+        private static string ApiUrl = "https://json.schedulesdirect.org/20141201";
+        public static SchedulesDirect Instance;
 
         public SchedulesDirect(ILogger logger, IJsonSerializer jsonSerializer, IHttpClient httpClient, IApplicationHost appHost)
             : base(logger, jsonSerializer)
         {
             _httpClient = httpClient;
-            _appHost = appHost;
-        }
-
-        private string UserAgent
-        {
-            get { return "Emby/" + _appHost.ApplicationVersion; }
+            UserAgent = "Emby/" + appHost.ApplicationVersion; ;
+            Instance = this;
         }
 
         private static List<string> GetScheduleRequestDates(DateTime startDateUtc, DateTime endDateUtc)
@@ -351,7 +347,7 @@ namespace MediaBrowser.Server.Implementations.LiveTv.Listings
             return info;
         }
 
-        private DateTime GetDate(string value)
+        private static DateTime GetDate(string value)
         {
             var date = DateTime.ParseExact(value, "yyyy'-'MM'-'dd'T'HH':'mm':'ss'Z'", CultureInfo.InvariantCulture);
 
@@ -362,7 +358,7 @@ namespace MediaBrowser.Server.Implementations.LiveTv.Listings
             return date;
         }
 
-        private string GetProgramLogo(string apiUrl, ScheduleDirect.ShowImages images)
+        private static string GetProgramLogo(string apiUrl, ScheduleDirect.ShowImages images)
         {
             string url = null;
             if (images.data != null)
@@ -756,9 +752,58 @@ namespace MediaBrowser.Server.Implementations.LiveTv.Listings
             }
         }
 
-        public Task<List<NameIdPair>> GetLineups(ListingsProviderInfo info, string country, string location)
+        public async Task<List<NameIdPair>> GetLineups(ListingsProviderInfo info)
         {
-            return GetHeadends(info, country, location, CancellationToken.None);
+            var cancellationToken = CancellationToken.None;
+
+            _logger.Info("Headends on account ");
+
+            var lineups = new List<NameIdPair>();
+           
+            var token = await GetToken(info, cancellationToken);
+
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                throw new Exception("token required");
+            }
+
+
+            var options = new HttpRequestOptions()
+            {
+                Url = ApiUrl + "/lineups",
+                UserAgent = UserAgent,
+                CancellationToken = cancellationToken,
+                LogErrorResponseBody = true
+            };
+
+            options.RequestHeaders["token"] = token;
+
+            try
+            {
+                using (var response = await Get(options, false, null).ConfigureAwait(false))
+                {
+                    var root = _jsonSerializer.DeserializeFromStream<ScheduleDirect.Lineups>(response);
+
+                    root.lineups.ForEach(l => {
+                        lineups.Add(new NameIdPair
+                        {
+                            Name = string.IsNullOrWhiteSpace(l.name) ? l.lineup : l.name,
+                            Id = l.uri.Substring(18)
+                        });
+                    });
+                }
+            }
+            catch (HttpException ex)
+            {
+                // Apparently we're supposed to swallow this
+                if (ex.StatusCode.HasValue && ex.StatusCode.Value == HttpStatusCode.BadRequest)
+                {
+                    return lineups;
+                }
+
+                throw;
+            }
+            return lineups;
         }
 
         public class ScheduleDirect

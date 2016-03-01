@@ -1,4 +1,4 @@
-﻿define(['paper-checkbox', 'paper-input'], function () {
+﻿define(['paper-checkbox', 'paper-input','paper-menu','paper-item'], function () {
 
     return function (page, providerId, options) {
 
@@ -21,13 +21,43 @@
                 page.querySelector('.txtUser').value = info.Username || '';
                 page.querySelector('.txtPass').value = '';
 
-                page.querySelector('.txtZipCode').value = info.ZipCode || '';
-
                 if (info.Username && info.Password) {
                     page.querySelector('.listingsSection').classList.remove('hide');
                 } else {
                     page.querySelector('.listingsSection').classList.add('hide');
                 }
+                
+
+                ApiClient.ajax({
+                    type: "GET",
+                    url: ApiClient.getUrl('LiveTv/ListingProviders/Lineups', {
+                        Id: providerId
+                    }),
+                    dataType: 'json'
+
+                }).then(function (result) {
+                    var count = 0;
+
+                    $('.AvaliableLineups > tbody', page).html(result.map(function (o) {
+                        count = count + 1;
+                        return '<tr data-lineupId="' + o.Id + '"><td>' + o.Name + '</td><td>Remove</td></tr>';
+
+                    }));
+
+                    if (listingsId) {                       
+                        $('[data-lineupId="'+listingsId+'"]', page).css('background-color','green');
+                    }
+
+                    Dashboard.hideModalLoadingMsg();
+
+                }, function (result) {
+
+                    Dashboard.alert({
+                        message: Globalize.translate('ErrorGettingTvLineups')
+                    });
+                    refreshListings('');
+                    Dashboard.hideModalLoadingMsg();
+                });
 
                 setCountry(info);
             });
@@ -144,8 +174,6 @@
                     return i.Id == id;
                 })[0];
 
-                info.ZipCode = page.querySelector('.txtZipCode').value;
-                info.Country = $('#selectCountry', page).val();
                 info.ListingsId = selectedListingsId;
 
                 ApiClient.ajax({
@@ -185,7 +213,7 @@
 
             ApiClient.ajax({
                 type: "GET",
-                url: ApiClient.getUrl('LiveTv/ListingProviders/Lineups', {
+                url: ApiClient.getUrl('/LiveTv/ListingProviders/SchedulesDirect/Headends', {
                     Id: providerId,
                     Location: value,
                     Country: $('#selectCountry', page).val()
@@ -193,17 +221,14 @@
                 dataType: 'json'
 
             }).then(function (result) {
+                var html = '<paper-dropdown-menu  label="Select Lineup">' +
+                    '<paper-menu attr-For-Selected="value" class="dropdown-content">';
 
-                $('#selectListing', page).html(result.map(function (o) {
-
-                    return '<option value="' + o.Id + '">' + o.Name + '</option>';
-
-                }));
-
-                if (listingsId) {
-                    $('#selectListing', page).val(listingsId);
-                }
-
+               html = html+result.map(function (o) {
+                    return '<paper-item value="' + o.Id + '">' + o.Name + '</paper-item>';
+                });
+                html = html + '</paper-menu></paper-dropdown-menu>';
+                page.querySelector('#addListing').innerHTML = html;
                 Dashboard.hideModalLoadingMsg();
 
             }, function (result) {
@@ -215,6 +240,13 @@
                 Dashboard.hideModalLoadingMsg();
             });
         }
+        window._itemSelected = function (e) {
+            var selectedItem = e.target.selectedItem;
+            console.log(e);
+            if (selectedItem) {
+                console.log("Selected: " + selectedItem);
+            }
+        };
 
         self.submit = function () {
             page.querySelector('.btnSubmitListingsContainer').click();
@@ -224,25 +256,9 @@
 
             options = options || {};
 
-            if (options.showCancelButton !== false) {
-                page.querySelector('.btnCancel').classList.remove('hide');
-            } else {
-                page.querySelector('.btnCancel').classList.add('hide');
-            }
-
-            if (options.showSubmitButton !== false) {
-                page.querySelector('.btnSubmitListings').classList.remove('hide');
-            } else {
-                page.querySelector('.btnSubmitListings').classList.add('hide');
-            }
-
+    
             $('.formLogin', page).on('submit', function () {
                 submitLoginForm();
-                return false;
-            });
-
-            $('.formListings', page).on('submit', function () {
-                submitListingsForm();
                 return false;
             });
 
@@ -251,7 +267,7 @@
             });
 
             $('.createAccountHelp', page).html(Globalize.translate('MessageCreateAccountAt', '<a href="http://www.schedulesdirect.org" target="_blank">http://www.schedulesdirect.org</a>'));
-
+            $('#addListing').on('iron-select', 'paper-menu', window._itemSelected);
             reload();
         };
     }
