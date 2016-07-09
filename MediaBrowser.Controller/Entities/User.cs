@@ -6,6 +6,8 @@ using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Serialization;
 using MediaBrowser.Model.Users;
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Serialization;
 using System.Threading;
@@ -21,17 +23,16 @@ namespace MediaBrowser.Controller.Entities
         public static IUserManager UserManager { get; set; }
         public static IXmlSerializer XmlSerializer { get; set; }
 
-        public string DN { get; set; }
-        public string DomainUid { get; set; }
+        public Dictionary<string,string> ExternalDn { get; set; }
+        public List<string> MemberOf { get; set; }
 
+        public string LocalUserName { get; set; }     
+           
         public string EasyPassword { get; set; }
 
-        public string ConnectUserName { get; set; }
-        public string ConnectUserId { get; set; }
         public UserLinkType? ConnectLinkType { get; set; }
-        public string ConnectAccessKey { get; set; }
 
-         private string _name;
+        private string _name;
         /// <summary>
         /// Gets or sets the name.
         /// </summary>
@@ -147,7 +148,7 @@ namespace MediaBrowser.Controller.Entities
                 throw new ArgumentNullException("newName");
             }
 
-            Name = newName;
+            LocalUserName = newName;
 
 			return RefreshMetadata(new MetadataRefreshOptions(new DirectoryService(FileSystem))
             {
@@ -215,6 +216,8 @@ namespace MediaBrowser.Controller.Entities
             }
         }
 
-        public string FQDN { get; set; }
+        public string ConnectAccessKey { get; set; }
+        public string ConnectUserName { get; set; }
+        public string ConnectUserId { get; set; }
     }
 }

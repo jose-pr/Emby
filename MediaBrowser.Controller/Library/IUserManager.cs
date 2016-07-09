@@ -101,7 +101,8 @@ namespace MediaBrowser.Controller.Library
         /// <returns>User.</returns>
         /// <exception cref="System.ArgumentNullException">name</exception>
         /// <exception cref="System.ArgumentException"></exception>
-        Task<User> CreateUser(string name);
+        Task<User> CreateUser(string userName, IDictionary<string, string> externalDn = null,
+            IEnumerable<string> memberOf = null, string commonName = null, bool remote = false);
 
         /// <summary>
         /// Deletes the user.

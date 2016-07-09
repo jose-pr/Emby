@@ -2,6 +2,7 @@
 using MediaBrowser.Model.Configuration;
 using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Users;
+using MediaBrowser.Providers.Authentication;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -12,7 +13,7 @@ namespace MediaBrowser.Controller.Persistence
     /// <summary>
     /// Provides an interface to implement a User repository
     /// </summary>
-    public interface IUserRepository : IRepository
+    public interface IUserRepository : IRepository, IDirectoriesProvider
     {
         /// <summary>
         /// Deletes the user.
@@ -42,6 +43,14 @@ namespace MediaBrowser.Controller.Persistence
 
         Task UpdateUserPolicy(User user, UserPolicy policy = null, CancellationToken cancellationToken = default(CancellationToken));
 
-        Task<User> CreateUser(DirectoryEntry entry, CancellationToken cancellationToken = default(CancellationToken));
+        Task<User> CreateUser(string rdn, string cn, IDictionary<string,string> externalDn,IEnumerable<string> memberOf = null,
+            CancellationToken cancellationToken = default(CancellationToken));
+
+        Task UpdateCommonName(Guid guid, string newName, CancellationToken cancellationToken = default(CancellationToken));
+
+        Task UpdateUserName(Guid guid, string newName, CancellationToken cancellationToken = default(CancellationToken));
+
+        Task UpdatePassword(Guid guid, string password, CancellationToken cancellationToken = default(CancellationToken));
+
     }
 }

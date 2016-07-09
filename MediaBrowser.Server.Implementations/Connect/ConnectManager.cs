@@ -865,7 +865,7 @@ namespace MediaBrowser.Server.Implementations.Connect
                         if (user == null)
                         {
                             // Add user
-                            user = await _userManager.CreateUser(LocalDirectoryProvider.MakeValidUsername(connectEntry.UserName)).ConfigureAwait(false);
+                            user = await _userManager.CreateUser(connectEntry.UserName).ConfigureAwait(false);
 
                             user.ConnectUserName = connectEntry.UserName;
                             user.ConnectUserId = connectEntry.UserId;

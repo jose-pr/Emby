@@ -803,7 +803,7 @@ namespace MediaBrowser.Server.Startup.Common
 
             StartServer();
 
-            UserManager.AddParts(GetExports<IDirectoriesProvider>());
+           // UserManager.AddParts(GetExports<IDirectoriesProvider>());
 
             LibraryManager.AddParts(GetExports<IResolverIgnoreRule>(),
                                     GetExports<IVirtualFolderCreator>(),

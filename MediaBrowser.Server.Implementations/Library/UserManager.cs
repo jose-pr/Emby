@@ -30,6 +30,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using CommonIO;
 using MediaBrowser.Providers.Authentication;
+using MediaBrowser.Server.Implementations.Persistence;
 
 namespace MediaBrowser.Server.Implementations.Library
 {
@@ -73,13 +74,12 @@ namespace MediaBrowser.Server.Implementations.Library
         private readonly IServerApplicationHost _appHost;
         private readonly IFileSystem _fileSystem;
         private string DefaultDomain;
-        private Dictionary<string, IDirectoriesProvider> DomainsProviders { get; set; }
+        private Dictionary<string, IDirectoriesProvider> DomainProviders { get; set; }
         private List<IDirectoriesProvider> DirectoriesProviders { get; set; }
 
         public UserManager(ILogger logger, IServerConfigurationManager configurationManager, IUserRepository userRepository, IXmlSerializer xmlSerializer, INetworkManager networkManager, Func<IImageProcessor> imageProcessorFactory, Func<IDtoService> dtoServiceFactory, Func<IConnectManager> connectFactory, IServerApplicationHost appHost, IJsonSerializer jsonSerializer, IFileSystem fileSystem)
         {
             _logger = logger;
-            UserRepository = userRepository;
             _xmlSerializer = xmlSerializer;
             _networkManager = networkManager;
             _imageProcessorFactory = imageProcessorFactory;
@@ -153,32 +153,76 @@ namespace MediaBrowser.Server.Implementations.Library
             return GetUserById(new Guid(id));
         }
 
-        public User GetUserByName(string name)
+        public User GetUserByName(ref string name, out string domain_uid, out string fqdn, bool addIfExist)
         {
             if (string.IsNullOrWhiteSpace(name))
             {
                 throw new ArgumentNullException("name");
             }
 
-            return Users.FirstOrDefault(i => string.Equals(name, i.DN, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(DefaultDomain + "/" + name, i.DN, StringComparison.OrdinalIgnoreCase));
-            
+            fqdn = DefaultDomain;
+            DirectoryEntry.GetRdn(ref name, ref fqdn);
+
+            string uid = String.Empty;
+            var _name = name;
+
+            var user = Users.FirstOrDefault(u =>
+                u.ExternalDn.Any(e =>
+                {
+                    if (string.Equals(_name, e.Key, StringComparison.OrdinalIgnoreCase))
+                    {
+                        uid = e.Value;
+                        return true;
+                    }
+                    return false;
+                }));
+            if (string.IsNullOrWhiteSpace(uid))
+            {
+                var e = DomainProviders[fqdn].RetrieveEntryByName(name).Result;
+                if (e == null) { throw new SecurityException("Invalid Name"); }
+                if(addIfExist && user == null)
+                {
+                    var extDn = new Dictionary<string, string>() { { e.RDN, e.UniqueId} };
+                    user = CreateUser(e.RDN,extDn,e.MemberOf ,e.CommonName,true).Result;
+                }else
+                {
+                    user.ExternalDn[e.RDN] = e.UniqueId;
+                    UserRepository.UpdateEntry(user).Wait();
+                }
+            }
+
+            domain_uid = uid;
+            return user;
+        }
+
+        public User GetUserByName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                throw new ArgumentNullException("name");
+            }
+            name = name.Contains("@") ? name : name + "@" + DefaultDomain;
+
+            return Users.FirstOrDefault(u =>
+                u.ExternalDn.Any(e => string.Equals(name, e.Key, StringComparison.OrdinalIgnoreCase)));
         }
 
         public async Task Initialize()
         {
-            Users = await LoadUsers().ConfigureAwait(false);
+            await LoadUsers().ConfigureAwait(false);
         }
 
-        public Task<bool> AuthenticateUser(string distinguishedName, string password, string remoteEndPoint)
+        public Task<bool> AuthenticateUser(string dn, string password, string remoteEndPoint)
         {
-            return AuthenticateUser(distinguishedName, password, null, remoteEndPoint);
+            return AuthenticateUser(dn, password, null, remoteEndPoint);
         }
 
         public async Task<bool> AuthenticateUser(string dn, string password, string passwordMd5, string remoteEndPoint)
         {
+            string uid;
+            string fqdn;
 
-            var user = GetUserByName(dn);
+            var user = GetUserByName(ref dn, out uid, out fqdn, true);           
 
             if (user == null)
             {
@@ -195,7 +239,7 @@ namespace MediaBrowser.Server.Implementations.Library
             // Authenticate using local credentials if not a guest
             if (!user.ConnectLinkType.HasValue || user.ConnectLinkType.Value != UserLinkType.Guest)
             {
-                success = await DomainsProviders[user.FQDN].Authenticate(user.DomainUid, user.FQDN, password);
+                success = await DomainProviders[fqdn].Authenticate(dn,password);
 
                 if (!success && _networkManager.IsInLocalNetwork(remoteEndPoint) && user.Configuration.EnableLocalPassword)
                 {
@@ -256,41 +300,43 @@ namespace MediaBrowser.Server.Implementations.Library
 
         private void GetDomains()
         {
-            DomainsProviders = new Dictionary<string, IDirectoriesProvider>();
+            DomainProviders = new Dictionary<string, IDirectoriesProvider>();
             DirectoriesProviders.ToList().ForEach(p =>
-                 p.GetDomains().ToList().ForEach(d => DomainsProviders[d] = p)
+                 p.GetDomains().ToList().ForEach(d => DomainProviders[d] = p)
             );
+            UserRepository = (IUserRepository) DomainProviders["Local"];
         }
 
         /// <summary>
         /// Loads the users from the repository
         /// </summary>
         /// <returns>IEnumerable{User}.</returns>
-        private async Task<IEnumerable<User>> LoadUsers()
+        private async Task LoadUsers()
         {
             GetDomains();
-            var users = UserRepository.RetrieveAllUsers().ToList();
+            Users = UserRepository.RetrieveAllUsers().ToList();
 
-            DomainsProviders.ToList().ForEach(d => {
+            List<User> localUsers = new List<User>();
+
+            DomainProviders.ToList().ForEach(d => {
                 d.Value.RetrieveAll(d.Key).Result.ToList().ForEach(e => {
-                    if(!users.Any(u => u.DN == e.DN))
-                    {
-                        users.Add(UserRepository.CreateUser(e).Result);
-                    }
+                    string fqdn, uid, name = e.CommonName;
+                    var u = GetUserByName(ref name,out uid,out fqdn,true);
+                    if(u.MemberOf.Contains("Local@Local")) { localUsers.Add(u); }
                 });
             });
-
+            
             //At least one local user has to be admin if not make all local users admins
-            if (users.Where(u => (u.FQDN == "Local" && u.Policy.IsAdministrator == true)).Count() == 0)
+            if (localUsers.Where(u => (u.Policy.IsAdministrator == true)).Count() == 0)
             {
-                foreach (var u in users.Where(u => (u.FQDN == "Local"))){
+                foreach (var u in localUsers){
                     u.Policy.IsAdministrator = true;
                     u.Policy.EnableContentDeletion = true;
                     u.Policy.EnableRemoteControlOfOtherUsers = true;
                     UserRepository.UpdateUserPolicy(u).Wait();
                 }
             }
-            return users;
+            return;
         }
 
         public UserDto GetUserDto(User user, string remoteEndPoint = null)
@@ -300,7 +346,7 @@ namespace MediaBrowser.Server.Implementations.Library
                 throw new ArgumentNullException("user");
             }
 
-            var hasConfiguredPassword = !DomainsProviders[user.FQDN].Authenticate(user.DomainUid, user.FQDN, String.Empty).Result;
+            var hasConfiguredPassword = !UserRepository.Authenticate(user.LocalUserName).Result;
             var hasConfiguredEasyPassword = !(GetLocalPasswordHash(user) == Crypto.GetSha1(String.Empty));
 
             var hasPassword = user.Configuration.EnableLocalPassword && !string.IsNullOrEmpty(remoteEndPoint) && _networkManager.IsInLocalNetwork(remoteEndPoint) ?
@@ -310,8 +356,7 @@ namespace MediaBrowser.Server.Implementations.Library
             var dto = new UserDto
             {
                 Id = user.Id.ToString("N"),
-                DN = user.DN,
-                FQDN = user.FQDN,
+                DN = user.ExternalDn.FirstOrDefault(e => e.Key.EndsWith("@"+DefaultDomain)).Key ?? user.LocalUserName,
                 Name = user.Name,
                 HasPassword = hasPassword,
                 HasConfiguredPassword = hasConfiguredPassword,
@@ -320,8 +365,6 @@ namespace MediaBrowser.Server.Implementations.Library
                 LastLoginDate = user.LastLoginDate,
                 Configuration = user.Configuration,
                 ConnectLinkType = user.ConnectLinkType,
-                ConnectUserId = user.ConnectUserId,
-                ConnectUserName = user.ConnectUserName,
                 ServerId = _appHost.SystemId,
                 Policy = user.Policy
             };
@@ -408,21 +451,36 @@ namespace MediaBrowser.Server.Implementations.Library
                 throw new ArgumentNullException("newName");
             }
 
-            if (Users.Any(u => u.Id != user.Id && u.Name.Equals(newName, StringComparison.OrdinalIgnoreCase)))
-            {
-                throw new ArgumentException(string.Format("A user with the name '{0}' already exists.", newName));
-            }
-
             if (user.Name.Equals(newName, StringComparison.Ordinal))
             {
                 throw new ArgumentException("The new and old names must be different.");
             }
 
-            var e = new DirectoryEntry(user.Name, user.FQDN);
+            await UserRepository.UpdateCommonName(user.Id, newName);
 
-            await DomainsProviders[user.FQDN].UpdateEntry(user.DomainUid, e);
+            OnUserUpdated(user);
+        }
 
-            await user.Rename(newName);
+        public async Task ChangeUserName(User user, string newUserName)
+        {
+            if (user == null)
+            {
+                throw new ArgumentNullException("user");
+            }
+
+            if (string.IsNullOrEmpty(newUserName))
+            {
+                throw new ArgumentNullException("newName");
+            }
+
+            if (user.LocalUserName.Equals(newUserName, StringComparison.Ordinal))
+            {
+                throw new ArgumentException("The new and old names must be different.");
+            }
+
+            await UserRepository.UpdateUserName(user.Id, newUserName);
+
+            await user.Rename(newUserName);
 
             OnUserUpdated(user);
         }
@@ -461,41 +519,51 @@ namespace MediaBrowser.Server.Implementations.Library
         /// <returns>User.</returns>
         /// <exception cref="System.ArgumentNullException">name</exception>
         /// <exception cref="System.ArgumentException"></exception>
-        public async Task<User> CreateUser(string name, string fqdn="Local")
+        public async Task<User> CreateUser(string userName,IDictionary<string,string> externalDn = null, IEnumerable<string> memberOf = null, string commonName = null, bool remote = true)
         {
-            if (string.IsNullOrWhiteSpace(name))
+            
+            if (string.IsNullOrWhiteSpace(userName))
             {
                 throw new ArgumentNullException("name");
             }
 
-            if (Users.Any(u => u.Name.Equals(name, StringComparison.OrdinalIgnoreCase) && u.FQDN.Equals(fqdn, StringComparison.OrdinalIgnoreCase)))
+            commonName = commonName ?? userName;
+            var count = 1;
+            var un = userName;
+
+            var alreadyExist = Users.Any(u => u.LocalUserName.Equals(un, StringComparison.OrdinalIgnoreCase));
+
+            while (remote && alreadyExist)
             {
-                throw new ArgumentException(string.Format("A user with the name '{0}'  already exists on '{1}'.", name,fqdn));
+                un = userName + "_" + count++;
+                alreadyExist = Users.Any(u => u.LocalUserName.Equals(un, StringComparison.OrdinalIgnoreCase));
+
+            }
+
+            if (alreadyExist)
+            {
+                throw new ArgumentException(string.Format("A user with the name '{0}'  already exists.", un));
             }
 
             await _userListLock.WaitAsync(CancellationToken.None).ConfigureAwait(false);
 
             try
             {
-                if (!Users.Any(u => u.Name == name && u.FQDN == fqdn))
-                {
-                    var entry = await DomainsProviders[fqdn].CreateEntry(name, fqdn);
-                    var user = await UserRepository.CreateUser(entry).ConfigureAwait(false);   
+                var user = await UserRepository.CreateUser(un,commonName,externalDn,memberOf).ConfigureAwait(false);
+                                
+                var users = Users.ToList();
+                users.Add(user);
+                Users = users;
 
-                    var users = Users.ToList();
-                    users.Add(user);
-                    Users = users;
+                EventHelper.QueueEventIfNotNull(UserCreated, this, new GenericEventArgs<User> { Argument = user }, _logger);
 
-                    EventHelper.QueueEventIfNotNull(UserCreated, this, new GenericEventArgs<User> { Argument = user }, _logger);
-
-                    return user;
-              }
+                return user;
+              
             }
             finally
             {
                 _userListLock.Release();
             }
-            return null;
         }
 
         /// <summary>
@@ -524,11 +592,6 @@ namespace MediaBrowser.Server.Implementations.Library
                 throw new ArgumentException(string.Format("The user cannot be deleted because there is no user with the Name {0} and Id {1}.", user.Name, user.Id));
             }
 
-            if (allUsers.Count == 1)
-            {
-                throw new ArgumentException(string.Format("The user '{0}' cannot be deleted because there must be at least one user in the system.", user.Name));
-            }
-
             if (user.Policy.IsAdministrator && allUsers.Count(i => i.Policy.IsAdministrator) == 1)
             {
                 throw new ArgumentException(string.Format("The user '{0}' cannot be deleted because there must be at least one admin user in the system.", user.Name));
@@ -538,11 +601,10 @@ namespace MediaBrowser.Server.Implementations.Library
 
             try
             {
-                await DomainsProviders[user.FQDN].DeleteEntry(user.Name, user.FQDN, CancellationToken.None);
                 await UserRepository.DeleteUser(user, CancellationToken.None).ConfigureAwait(false);
 
                 // Force this to be lazy loaded again
-                Users = await LoadUsers().ConfigureAwait(false);
+                await LoadUsers().ConfigureAwait(false);
 
                 OnUserDeleted(user);
             }
@@ -579,7 +641,7 @@ namespace MediaBrowser.Server.Implementations.Library
             }
 
             
-            await DomainsProviders[user.FQDN].UpdatePassword(user.DomainUid,user.FQDN,newPassword).ConfigureAwait(false);
+            await UserRepository.UpdatePassword(user.Id,newPassword).ConfigureAwait(false);
 
             EventHelper.FireEventIfNotNull(UserPasswordChanged, this, new GenericEventArgs<User>(user), _logger);
         }
@@ -827,11 +889,6 @@ namespace MediaBrowser.Server.Implementations.Library
             DirectoriesProviders = providers.ToList();
             Initialize().Wait();
             _logger.Info("----------INITIAL------------");
-        }
-
-        public Task<User> CreateUser(string name)
-        {
-            return CreateUser(name, "Local");
         }
     }
 }

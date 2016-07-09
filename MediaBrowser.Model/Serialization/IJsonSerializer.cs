@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace MediaBrowser.Model.Serialization
@@ -12,6 +13,15 @@ namespace MediaBrowser.Model.Serialization
         /// <param name="stream">The stream.</param>
         /// <exception cref="System.ArgumentNullException">obj</exception>
         void SerializeToStream(object obj, Stream stream);
+
+        /// <summary>
+        /// Serializes to bytes.
+        /// </summary>
+        /// <param name="json">The json.</param>
+        /// <param name="obj">The obj.</param>
+        /// <returns>System.Byte[][].</returns>
+        /// <exception cref="System.ArgumentNullException">obj</exception>
+        byte[] SerializeToBytes(object obj);
 
         /// <summary>
         /// Serializes to file.
@@ -48,6 +58,15 @@ namespace MediaBrowser.Model.Serialization
         /// <returns>``0.</returns>
         /// <exception cref="System.ArgumentNullException">stream</exception>
         T DeserializeFromStream<T>(Stream stream);
+
+        /// <summary>
+        /// Deserializes from Bytes.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="stream">The stream.</param>
+        /// <returns>``0.</returns>
+        /// <exception cref="System.ArgumentNullException">stream</exception>
+        T DeserializeFromBytes<T>(byte[] bytes);
 
         /// <summary>
         /// Deserializes from string.

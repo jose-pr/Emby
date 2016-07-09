@@ -10,20 +10,13 @@ namespace MediaBrowser.Providers.Authentication
 {
     public interface IDirectoriesProvider
     {
-        Task<bool> Authenticate(string uid, string fqdn, string password, CancellationToken cancellationToken = default(CancellationToken));
+        Task<bool> Authenticate(string dn, string password = "", CancellationToken cancellationToken = default(CancellationToken));
 
-        Task UpdatePassword(string uid, string fqdn, string password, CancellationToken cancellationToken = default(CancellationToken));
+        Task<DirectoryEntry> RetrieveEntryByName(string dn, CancellationToken cancellationToken = default(CancellationToken));
 
-        Task<DirectoryEntry> RetrieveEntry(string uid, string fqdn, CancellationToken cancellationToken = default(CancellationToken));
+        Task<DirectoryEntry> RetrieveEntryById(string uid, string fqdn="", CancellationToken cancellationToken = default(CancellationToken));
 
-        Task DeleteEntry(string uid, string fqdn, CancellationToken cancellationToken = default(CancellationToken));
-
-        Task<DirectoryEntry> CreateEntry(string cn, string fqdn, IEnumerable<string> memberOf = null, IDictionary<string, string> attributes = null,
-            EntryType type = EntryType.User, CancellationToken cancellationToken = default(CancellationToken));
-
-        Task UpdateEntry(string uid, DirectoryEntry entry, CancellationToken cancellationToken = default(CancellationToken));
-
-        Task<IEnumerable<DirectoryEntry>> RetrieveAll(string fqdn);
+        Task<IEnumerable<DirectoryEntry>> RetrieveAll(string fqdn=null);
 
         IEnumerable<string> GetDomains();
     }

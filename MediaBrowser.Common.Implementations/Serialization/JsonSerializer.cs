@@ -2,6 +2,7 @@
 using System;
 using System.IO;
 using CommonIO;
+using System.Collections.Generic;
 
 namespace MediaBrowser.Common.Implementations.Serialization
 {
@@ -218,6 +219,32 @@ namespace MediaBrowser.Common.Implementations.Serialization
             }
 
             return ServiceStack.Text.JsonSerializer.SerializeToString(obj, obj.GetType());
+        }
+
+        public byte[] SerializeToBytes(object obj)
+        {
+            if (obj == null)
+            {
+                throw new ArgumentNullException("obj");
+            }
+
+            using (var stream = new MemoryStream())
+            {
+                ServiceStack.Text.JsonSerializer.SerializeToStream(obj, obj.GetType(), stream);
+                return new byte[] { };
+            }
+        }
+
+        public T DeserializeFromBytes<T>(byte[] bytes)
+        {
+            if (bytes == null)
+            {
+                throw new ArgumentNullException("bytes");
+            }
+
+            var stream = new MemoryStream(bytes);
+
+            return ServiceStack.Text.JsonSerializer.DeserializeFromStream<T>(stream);
         }
     }
 }
